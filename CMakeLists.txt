@@ -4,7 +4,7 @@ project(gdpc)
 # Command line options
 option(DEBUG "Compile target for debugging (ON | OFF)" ON)
 
-file(GLOB GDPC_SOURCE_FILES "*.c")
+file(GLOB GDPC_SOURCE_FILES "src/*.c")
 add_executable(gdpc ${GDPC_SOURCE_FILES})
 
 # Set compiler options

@@ -14,6 +14,7 @@ bool parse_command_line_arguments(int argc, char** argv, config* cfg)
     // Default initialize the configuration
     cfg->verbose = false;
     cfg->operation_mode = OPERATION_MODE_UNSPECIFIED;
+    cfg->extraction_mode = EXTRACTION_MODE_ORIGINAL;
     cfg->input_count = 0;
     cfg->input_files = NULL;
     cfg->destination = NULL;
@@ -85,6 +86,10 @@ static int parse_long_option(char* arg, config* cfg)
     else if(strcmp(arg, "--create") == 0) cfg->operation_mode = OPERATION_MODE_CREATE;
     else if(strcmp(arg, "--update") == 0) cfg->operation_mode = OPERATION_MODE_UPDATE;
 
+    else if(strcmp(arg, "--import") == 0) cfg->extraction_mode = EXTRACTION_MODE_IMPORT;
+    else if(strcmp(arg, "--assets-only") == 0) cfg->extraction_mode = EXTRACTION_MODE_ASSETS;
+
+
     else if(strcmp(arg, "--verbose") == 0) cfg->verbose = true;
     else if(strcmp(arg, "--help") == 0) print_help_message();
 
@@ -105,16 +110,23 @@ static int parse_short_options(char* arg, config* cfg)
         switch(arg[i])
         {
             case 'l': cfg->operation_mode = OPERATION_MODE_LIST;
-                        break;
+                      break;
             case 'e': cfg->operation_mode = OPERATION_MODE_EXTRACT;
-                        break;
+                      break;
             case 'c': cfg->operation_mode = OPERATION_MODE_CREATE;
-                        break;
+                      break;
             case 'u': cfg->operation_mode = OPERATION_MODE_UPDATE;
-                        break;
+                      break;
             
+            case 'i': cfg->extraction_mode = EXTRACTION_MODE_IMPORT;
+                      break;
+            case 'a': cfg->extraction_mode = EXTRACTION_MODE_ASSETS;
+                      break;
+
             case 'v': cfg->verbose = true;
-                        break;
+                      break;
+            
+            case 'h': print_help_message();
             
             default: printf("Unknown option '%c' in '%s'\nTry 'gdpc --help' for more information.\n", arg[i], arg);
                      return 1;
@@ -158,6 +170,6 @@ static int parse_paths(char* arg, config* cfg)
 
 static void print_help_message()
 {
-    printf("usage: gdpc [OPTIONS...] [FILES...] [DEST]\n");
+    printf("usage: gdpc [-aceiluv] [--longoption ...] [[file ...] dest]\n");
     exit(0);
 }

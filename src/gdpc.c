@@ -1,28 +1,15 @@
 #include "gdpc.h"
+#include "gd_resources.h"
+#include "file_utils.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
 
-// Platform-dependant includes
-#ifdef __linux__
-#include <sys/stat.h>
-#include <sys/types.h>
-#endif
-
-typedef struct
-{
-    char* path;
-    int64_t offset;
-    int64_t size;
-} gdpc_file;
-
 static int read_pack(const char* path, config* cfg);
-static int read_file_list(FILE* pack, gdpc_file* file_list, int file_count, config* cfg);
-static int extract_files(FILE* pack, gdpc_file* file_list, int file_count, config* cfg);
-
-static void create_dir(char* path);
+static int read_file_list(FILE* pack, gd_file* file_list, int file_count, config* cfg);
+static int read_files(FILE* pack, gd_file* file_list, int file_count, config* cfg);
 
 int read_packs(config* cfg)
 {
@@ -74,7 +61,7 @@ static int read_pack(const char* path, config* cfg)
     int file_count = 0;
     fread(&file_count, 4, 1, pack);
 
-    gdpc_file* list = malloc(file_count * sizeof(gdpc_file));
+    gd_file* list = malloc(file_count * sizeof(gd_file));
     if(list == NULL)
     {
         fprintf(stderr, "malloc(): failed to allocate memory.\n");
@@ -94,9 +81,10 @@ static int read_pack(const char* path, config* cfg)
     // Read the file list
     read_file_list(pack, list, file_count, cfg);
 
+    // Extract the files
     if(cfg->operation_mode == OPERATION_MODE_EXTRACT)
     {
-        extract_files(pack, list, file_count, cfg);
+        read_files(pack, list, file_count, cfg);
     }
 
     free(list);
@@ -105,7 +93,7 @@ static int read_pack(const char* path, config* cfg)
     return 0;
 }
 
-static int read_file_list(FILE* pack, gdpc_file* file_list, int file_count, config* cfg)
+static int read_file_list(FILE* pack, gd_file* file_list, int file_count, config* cfg)
 {
     for(int i = 0; i < file_count; ++i)
     {
@@ -143,73 +131,51 @@ static int read_file_list(FILE* pack, gdpc_file* file_list, int file_count, conf
     return 0;
 }
 
-static int extract_files(FILE* pack, gdpc_file* file_list, int file_count, config* cfg)
+static int read_files(FILE* pack, gd_file* file_list, int file_count, config* cfg)
 {
     size_t dest_len = strlen(cfg->destination);
 
+    // For each files in the pack...
     for(int i = 0; i < file_count; ++i)
     {
-        // Get the file info
-        gdpc_file* file_info = &file_list[i];
-        size_t path_len = strlen(file_info->path) - 6;
+        // Get file info
+        gd_file* file_info = &file_list[i];
 
-        // Create the path to the extracted file
-        char* path = malloc(dest_len + path_len + 1);
-        if(path == NULL)
+        // If extraction mode is set to extract all files or if this isn't a Godot file...
+        if(cfg->extraction_mode == EXTRACTION_MODE_ORIGINAL || is_godot_extension(file_info->path) == 0)
         {
-            fprintf(stderr, "malloc(): failed to allocate memory.\n");
-            abort();
-        }
+            // Extract the file
+            char* path = generate_path(file_info->path, cfg->destination, dest_len);
+            create_path(path);
 
-        strcpy(path, cfg->destination);
-        strcat(path, file_info->path + 6);
+            fseek(pack, file_info->offset, SEEK_SET);
+            extract_file(path, pack, file_info->size);
 
-        // Create all subdirectories (if neccessary)
-        #ifdef __linux__
-        char* separator = strrchr(path, '/');
-        if(separator != NULL)
-        {
-            *separator = '\0';
-            create_dir(path);
-            *separator = '/';
-        }
-        #endif
-
-        // Open/create extracted file
-        FILE* dest = fopen(path, "w");
-        if(dest == NULL)
-        {
+            // Clean up
             free(path);
-            continue;
         }
 
-        // Copy the contents of the archive to the extracted file
-        fseek(pack, file_info->offset, SEEK_SET);
-
-        int data;
-        for(int j = 0; j < file_info->size; ++j)
+        // Else if it's a Godot .import file...
+        else if(is_import(file_info->path) == 1)
         {
-            data = fgetc(pack);
-            fputc(data, dest);
-        }
+            // Extract .import file
+            if(cfg->extraction_mode == EXTRACTION_MODE_IMPORT)
+            {
+                // Extract the file
+                char* path = generate_path(file_info->path, cfg->destination, dest_len);
+                create_path(path);
 
-        fclose(dest);
-        free(path);
+                fseek(pack, file_info->offset, SEEK_SET);
+                extract_file(path, pack, file_info->size);
+
+                // Clean up
+                free(path);
+            }
+
+            // Extract resource
+            extract_resource_from_import(file_info, file_list, file_count, pack, cfg);
+        }
     }
 
     return 0;
 }
-
-#ifdef __linux__
-static void create_dir(char* path)
-{
-    char* separator = strrchr(path, '/');
-    if(separator != NULL)
-    {
-        *separator = '\0';
-        create_dir(path);
-        *separator = '/';
-    }
-    mkdir(path, 0777);
-}
-#endif

@@ -6,10 +6,5 @@
 
 # Source files
 !CMakeLists.txt
-
-!main.c
-!gdpc.c
-!config.c
-
-!gdpc.h
-!config.h
+!src/
+!src/*

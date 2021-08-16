@@ -13,11 +13,19 @@ enum
     OPERATION_MODE_UPDATE = 5
 };
 
+enum
+{
+    EXTRACTION_MODE_ORIGINAL = 0,
+    EXTRACTION_MODE_IMPORT = 1,
+    EXTRACTION_MODE_ASSETS = 2
+};
+
 typedef struct
 {
     bool verbose;
 
     int operation_mode;
+    int extraction_mode;
 
     int input_count;
     char** input_files;
