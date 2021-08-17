@@ -30,5 +30,8 @@ int main(int argc, char** argv)
 
     }
 
+    // Clean-up
+    free_config(&cfg);
+
     return 0;
 }

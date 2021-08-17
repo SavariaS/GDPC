@@ -33,5 +33,6 @@ typedef struct
 } config;
 
 bool parse_command_line_arguments(int argc, char** argv, config* cfg);
+void free_config(config* cfg);
 
 #endif

@@ -87,6 +87,8 @@ static int read_pack(const char* path, config* cfg)
         read_files(pack, list, file_count, cfg);
     }
 
+    // Clean-up
+    for(int i = 0; i < file_count; ++i) free(list[i].path);
     free(list);
     fclose(pack);
 

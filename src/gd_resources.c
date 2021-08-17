@@ -72,6 +72,7 @@ int extract_resource_from_import(gd_file* file_info, gd_file* file_list, int fil
         case GD_RESOURCE_TYPE_UNKNOWN: // Fallthrough
         default:
         {
+            extract_file(path, pack, mapped_file->size);
             printf("gdpc: Unknown type for \"%s\".\n", file_info->path);
             break;
         }

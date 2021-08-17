@@ -9,7 +9,8 @@ add_executable(gdpc ${GDPC_SOURCE_FILES})
 
 # Set compiler options
 if(DEBUG)
-    target_compile_options(gdpc PRIVATE "-g" "-O0" "-std=c99" "-Wall" "-Wextra" "-Wpedantic" "-Werror")
+    SET(CMAKE_C_FLAGS "-g -O0 -std=c99 -Wall -Wextra -Wpedantic -Werror -fsanitize=address")
+    SET(CMAKE_EXE_LINKER_FLAGS "-fsanitize=address")
 else()
-    target_compile_options(gdpc PRIVATE "-O3" "-std=c99")
+    SET(CMAKE_C_FLAGS "-03 -std=c99")
 endif()

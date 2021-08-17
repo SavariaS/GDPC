@@ -127,6 +127,7 @@ static int parse_short_options(char* arg, config* cfg)
                       break;
             
             case 'h': print_help_message();
+                      break;
             
             default: printf("Unknown option '%c' in '%s'\nTry 'gdpc --help' for more information.\n", arg[i], arg);
                      return 1;
@@ -172,4 +173,11 @@ static void print_help_message()
 {
     printf("usage: gdpc [-aceiluv] [--longoption ...] [[file ...] dest]\n");
     exit(0);
+}
+
+void free_config(config* cfg)
+{
+    for(int i = 0; i < cfg->input_count; ++i) free(cfg->input_files[i]);
+    free(cfg->input_files);
+    free(cfg->destination);
 }
