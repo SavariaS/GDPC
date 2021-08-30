@@ -3,23 +3,33 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "file_utils.h"
 
-static void print_help_message();
 static int parse_long_option(char* arg, config* cfg);
 static int parse_short_options(char* arg, config* cfg);
+static int parse_value(char* arg, config* cfg);
 static int parse_paths(char* arg, config* cfg);
+
+static int add_filter(dynamic_array* arr, char* arg);
+
+static void print_help_message();
 
 bool parse_command_line_arguments(int argc, char** argv, config* cfg)
 {
     // Default initialize the configuration
     cfg->verbose = false;
+    cfg->convert = false;
+    cfg->version_major = 0;
+    cfg->version_major = 0;
+    cfg->version_major = 0;
     cfg->operation_mode = OPERATION_MODE_UNSPECIFIED;
-    cfg->extraction_mode = EXTRACTION_MODE_ORIGINAL;
-    cfg->input_count = 0;
-    cfg->input_files = NULL;
     cfg->destination = NULL;
 
-    // For each argument, except the last one
+    dynamic_array_init(&cfg->whitelist, sizeof(filter));
+    dynamic_array_init(&cfg->blacklist, sizeof(filter));
+    dynamic_array_init(&cfg->input_files, sizeof(char*));
+
+    // For each argument, except the first one (the executable call)
     for(int i = 1; i < argc; ++i)
     {
         // If the argument is a long option...
@@ -27,40 +37,20 @@ bool parse_command_line_arguments(int argc, char** argv, config* cfg)
         {
             if(parse_long_option(argv[i], cfg) != 0) return 1;
         }
+        // Else, if it's a value...
+        else if(argv[i][0] == '-' && argv[i][2] == '=')
+        {
+            if(parse_value(argv[i], cfg) != 0) return 1;
+        }
         // Else, if it's a short option...
-        else if(argv[i][0] == '-' && argv[i][1] != '-')
+        else if(argv[i][0] == '-')
         {
             if(parse_short_options(argv[i], cfg) != 0) return 1;
         }
-        // If the argument is not an option, parse all paths
+        // Else, parse path
         else
         {
-            // Parse all input files
-            for(int j = 0; j < argc - (i + 1); ++j)
-            {
-                parse_paths(argv[i + j], cfg);
-            }
-
-            // If operation mode is LIST, parse last path as input
-            if(cfg->operation_mode == OPERATION_MODE_LIST)
-            {
-                parse_paths(argv[argc - 1], cfg);
-            }
-            else
-            {
-                size_t len = strlen(argv[argc - 1]);
-                cfg->destination = malloc(len + 1);
-
-                if(cfg->destination == NULL)
-                {
-                    fprintf(stderr, "malloc(): failed to allocate memory.\n");
-                    abort();
-                }
-
-                strcpy(cfg->destination, argv[argc - 1]);
-            }
-
-            break;
+            parse_paths(argv[i], cfg);
         }
     }
 
@@ -70,11 +60,28 @@ bool parse_command_line_arguments(int argc, char** argv, config* cfg)
         printf("gdpc: You must specify the operation mode.\nTry 'gdpc --help' for more information.\n");
         return 1;
     }
-    if(cfg->input_files == NULL && cfg->operation_mode != OPERATION_MODE_LIST)
+    if(cfg->input_files.size < 1 && cfg->operation_mode == OPERATION_MODE_LIST)
     {
-        printf("gdpc: You must provide files to extract/archive.\nTry 'gdpc --help' for more information.\n");
+        printf("gdpc: You must provide files to list.\nTry 'gdpc --help' for more information.\n");
         return 1;
     }
+    if(cfg->input_files.size < 2 && cfg->operation_mode != OPERATION_MODE_LIST)
+    {
+        printf("gdpc: You must provide file(s) to extract/package as well as a destination.\nTry 'gdpc --help' for more information.\n");
+        return 1;
+    }
+
+    // If the operation mode requires a destination, use last file inputted as the destination
+    if(cfg->operation_mode != OPERATION_MODE_LIST)
+    {
+        cfg->destination = ((char**)cfg->input_files.data)[cfg->input_files.size - 1]; // Set last file as the destination
+        dynamic_array_pop_back(&cfg->input_files); // Remove it from the list of input files
+    }
+
+
+    dynamic_array_shrink(&cfg->whitelist);
+    dynamic_array_shrink(&cfg->blacklist);
+    dynamic_array_shrink(&cfg->input_files);
 
     return 0;
 }
@@ -86,10 +93,7 @@ static int parse_long_option(char* arg, config* cfg)
     else if(strcmp(arg, "--create") == 0) cfg->operation_mode = OPERATION_MODE_CREATE;
     else if(strcmp(arg, "--update") == 0) cfg->operation_mode = OPERATION_MODE_UPDATE;
 
-    else if(strcmp(arg, "--import") == 0) cfg->extraction_mode = EXTRACTION_MODE_IMPORT;
-    else if(strcmp(arg, "--assets-only") == 0) cfg->extraction_mode = EXTRACTION_MODE_ASSETS;
-
-
+    else if(strcmp(arg, "--convert") == 0) cfg->convert = true;
     else if(strcmp(arg, "--verbose") == 0) cfg->verbose = true;
     else if(strcmp(arg, "--help") == 0) print_help_message();
 
@@ -117,11 +121,6 @@ static int parse_short_options(char* arg, config* cfg)
                       break;
             case 'u': cfg->operation_mode = OPERATION_MODE_UPDATE;
                       break;
-            
-            case 'i': cfg->extraction_mode = EXTRACTION_MODE_IMPORT;
-                      break;
-            case 'a': cfg->extraction_mode = EXTRACTION_MODE_ASSETS;
-                      break;
 
             case 'v': cfg->verbose = true;
                       break;
@@ -129,7 +128,7 @@ static int parse_short_options(char* arg, config* cfg)
             case 'h': print_help_message();
                       break;
             
-            default: printf("Unknown option '%c' in '%s'\nTry 'gdpc --help' for more information.\n", arg[i], arg);
+            default: printf("gdpc: Unknown option '%c' in '%s'\nTry 'gdpc --help' for more information.\n", arg[i], arg);
                      return 1;
         }
     }
@@ -137,34 +136,65 @@ static int parse_short_options(char* arg, config* cfg)
     return 0;
 }
 
-
-// This seems needlessly complicated but will be needed when support for wildcard expansion will be added
-static int parse_paths(char* arg, config* cfg)
+static int parse_value(char* arg, config* cfg)
 {
-    // Increase the size of the file array by 1
-    if(cfg->input_count == 0) cfg->input_files = malloc(sizeof(char*));
-    else                      cfg->input_files = realloc(cfg->input_files, cfg->input_count + 1);
-
-    if(cfg->input_files == NULL)
+    switch(arg[1])
     {
-        if(cfg->input_count == 0) fprintf(stderr, "malloc(): failed to allocate memory.\n");
-        else                      fprintf(stderr, "realloc(): failed to re-allocate memory.\n");
-        abort();
+        case 'v': sscanf(arg, "-v=%d.%d.%d", &cfg->version_major, &cfg->version_minor, &cfg->version_revision);
+                  break;
+        
+        case 'w': return add_filter(&cfg->whitelist, arg);
+                  break;
+        case 'b': return add_filter(&cfg->blacklist, arg);
+
+        default: printf("gdpc: Unknown option '-%c'\nTry 'gdpc --help' for more information.\n", arg[1]);
+                 return 1;
     }
 
-    cfg->input_count++;
+    return 0;
+}
 
-    // Add the path
-    size_t len = strlen(arg);
-    cfg->input_files[cfg->input_count - 1] = malloc(len + 1);
+static int add_filter(dynamic_array* arr, char* arg)
+{
+    filter fil;
 
-    if(cfg->input_files[cfg->input_count - 1] == NULL)
+    // Allocate memory
+    size_t len = strlen(arg) - 3; // Ignore "-w="
+    fil.data = malloc(len + 1);
+    fil.end = fil.data + len + 1;
+
+    if(fil.data == NULL)
     {
         fprintf(stderr, "malloc(): failed to allocate memory.\n");
         abort();
     }
+    strcpy(fil.data, arg + 3);
 
-    strcpy(cfg->input_files[cfg->input_count - 1], arg);
+    // Find wildcard character
+    fil.wildcard = NULL;
+    for(char* itr = fil.data; *itr != '\0'; ++itr)
+    {
+        if(*itr == '*')
+        {
+            fil.wildcard = itr;
+            break;
+        }
+    }
+
+    // Push back
+    dynamic_array_push_back(arr, &fil);
+
+    return 0;
+}
+
+static int parse_paths(char* arg, config* cfg)
+{
+    // Copy path
+    size_t len = strlen(arg);
+    char* data = malloc(len + 1);
+    strcpy(data, arg);
+
+    dynamic_array_push_back(&cfg->input_files, &data);
 
     return 0;
 }
@@ -177,7 +207,28 @@ static void print_help_message()
 
 void free_config(config* cfg)
 {
-    for(int i = 0; i < cfg->input_count; ++i) free(cfg->input_files[i]);
-    free(cfg->input_files);
+    // Free the heap allocated strings from the file list
+    char** files = (char**)cfg->input_files.data;
+    for(size_t i = 0; i < cfg->input_files.size; ++i) 
+    {
+        free(files[i]);
+    }
+
+    // Free the heap allocated strings contained in the filters
+    for(size_t i = 0; i < cfg->whitelist.size; ++i)
+    {
+        filter* f = (filter*)&cfg->whitelist.data[i * sizeof(filter)];
+        free(f->data);
+    }
+
+    for(size_t i = 0; i < cfg->blacklist.size; ++i)
+    {
+        filter* f = (filter*)&cfg->blacklist.data[i * sizeof(filter)];
+        free(f->data);
+    }
+
+    dynamic_array_free(&cfg->input_files);
+    dynamic_array_free(&cfg->whitelist);
+    dynamic_array_free(&cfg->blacklist);
     free(cfg->destination);
 }

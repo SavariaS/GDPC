@@ -16,10 +16,11 @@ int read_packs(config* cfg)
     int error = 0;
 
     // For each pack in the inputs...
-    for(int i = 0; i < cfg->input_count; ++i)
+    for(size_t i = 0; i < cfg->input_files.size; ++i)
     {
         // Read the pack
-        if(read_pack(cfg->input_files[i], cfg) != 0)
+        char* file = ((char**)cfg->input_files.data)[i];
+        if(read_pack(file, cfg) != 0)
         {
             error = 1;
         }
@@ -28,6 +29,13 @@ int read_packs(config* cfg)
     return error;
 }
 
+/*
+ * 1 x 4B  | String | Magic Number (GDPC)
+ * 1 x 4B  | Int    | ?
+ * 3 x 4B  | Int    | Engine version
+ * 1 x 64B | Void   | Reserved
+ * 1 x 4B  | Int    | Number of packaged files 
+*/
 static int read_pack(const char* path, config* cfg)
 {
     // Open file
@@ -71,10 +79,10 @@ static int read_pack(const char* path, config* cfg)
     // Print additional information if verbose
     if(cfg->operation_mode == OPERATION_MODE_LIST || cfg->verbose == true)
     {
-        printf("%s\n", path);
+        printf("\033[4m%s\033[24m\n", path);
         if(cfg->verbose == true)
         {
-            printf("Godot v%d.%d.%d\nFile count: %d\n", major, minor, revision, file_count);
+            printf("Godot v%d.%d.%d\nFile count: %d\n\n", major, minor, revision, file_count);
         }
     }
 
@@ -95,12 +103,19 @@ static int read_pack(const char* path, config* cfg)
     return 0;
 }
 
+/*
+ * 1 x 4B  | Int    | String length
+ *         | String | Path
+ * 1 x 8B  | Int    | File offset
+ * 1 x 8B  | Int    | File size
+ * 1 x 16B | ?      | MD5
+*/
 static int read_file_list(FILE* pack, gd_file* file_list, int file_count, config* cfg)
 {
     for(int i = 0; i < file_count; ++i)
     {
         // Get the length of the path
-        int len = 0;
+        int len;
         fread(&len, 4, 1, pack);
 
         file_list[i].path = malloc(len + 1);
@@ -111,6 +126,20 @@ static int read_file_list(FILE* pack, gd_file* file_list, int file_count, config
         }
         fread(file_list[i].path, 1, len, pack);
         file_list[i].path[len] = '\0';
+
+        // Get the real length of the path and resize it if neccessary
+        file_list[i].len = strlen(file_list[i].path);
+        if(file_list[i].len != len)
+        {
+            char* new = realloc(file_list[i].path, file_list[i].len + 1);
+            if(new == NULL)
+            {
+                fprintf(stderr, "malloc(): failed to allocate memory.\n");
+                abort();
+            }
+
+            file_list[i].path = new;
+        }
 
         // Get the offset
         fread(&file_list[i].offset, 8, 1, pack);
@@ -127,7 +156,7 @@ static int read_file_list(FILE* pack, gd_file* file_list, int file_count, config
         {
             printf("%s\n", file_list[i].path);
         }
-        printf("-----\n");
+        printf("\n");
     }
 
     return 0;
@@ -143,8 +172,8 @@ static int read_files(FILE* pack, gd_file* file_list, int file_count, config* cf
         // Get file info
         gd_file* file_info = &file_list[i];
 
-        // If extraction mode is set to extract all files or if this isn't a Godot file...
-        if(cfg->extraction_mode == EXTRACTION_MODE_ORIGINAL || is_godot_extension(file_info->path) == 0)
+        // If the file should be extracted...
+        if(is_whitelisted(file_info->path, file_info->len, cfg) && !is_blacklisted(file_info->path, file_info->len, cfg))
         {
             // Extract the file
             char* path = generate_path(file_info->path, cfg->destination, dest_len);
@@ -157,25 +186,11 @@ static int read_files(FILE* pack, gd_file* file_list, int file_count, config* cf
             free(path);
         }
 
-        // Else if it's a Godot .import file...
-        else if(is_import(file_info->path) == 1)
+        // Else if it's an .import file and resource files should be converted...
+        else if(cfg->convert == true && is_import(file_info->path) == true)
         {
-            // Extract .import file
-            if(cfg->extraction_mode == EXTRACTION_MODE_IMPORT)
-            {
-                // Extract the file
-                char* path = generate_path(file_info->path, cfg->destination, dest_len);
-                create_path(path);
-
-                fseek(pack, file_info->offset, SEEK_SET);
-                extract_file(path, pack, file_info->size);
-
-                // Clean up
-                free(path);
-            }
-
             // Extract resource
-            extract_resource_from_import(file_info, file_list, file_count, pack, cfg);
+            convert_resource(file_info, file_list, file_count, pack, cfg);
         }
     }
 

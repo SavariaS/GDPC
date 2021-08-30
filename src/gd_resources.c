@@ -20,33 +20,15 @@ enum
 static gd_file* get_mapped_file(gd_file* file_list, int file_count, FILE* pack);
 static int get_resource_type(FILE* pack);
 
-static int extract_image(const char* path, gd_file* file_info, FILE* pack);
-static int extract_texture(const char* path, gd_file* file_info, FILE* pack);
-
 static char* get_string(const char* item, FILE* pack);
 
-int is_godot_extension(const char* path)
+bool is_import(const char* path)
 {
     path += strlen(path);
-
-    if(strncmp(path - 7, ".import", 7) == 0 || 
-       strncmp(path - 5, ".stex", 5) == 0   ||
-       strncmp(path - 6, ".image", 6) == 0  ||
-       strncmp(path - 7, ".binary", 7) == 0)
-    {
-        return 1;
-    }
-
-    return 0;
+    return (strncmp(path - 7, ".import", 7) == 0) ? true : false;
 }
 
-int is_import(const char* path)
-{
-    path += strlen(path);
-    return (strncmp(path - 7, ".import", 7) == 0) ? 1 : 0;
-}
-
-int extract_resource_from_import(gd_file* file_info, gd_file* file_list, int file_count, FILE* pack, config* cfg)
+int convert_resource(gd_file* file_info, gd_file* file_list, int file_count, FILE* pack, config* cfg)
 {
     // Get mapped file
     fseek(pack, file_info->offset, SEEK_SET);
@@ -62,21 +44,8 @@ int extract_resource_from_import(gd_file* file_info, gd_file* file_list, int fil
     create_path(path);
 
     // Extract file
-    switch(resource_type)
-    {
-        case GD_RESOURCE_TYPE_IMAGE: extract_image(path, mapped_file, pack);
-                                     break;
-        case GD_RESOURCE_TYPE_TEXTURE: extract_texture(path, mapped_file, pack);
-                                       break;
-
-        case GD_RESOURCE_TYPE_UNKNOWN: // Fallthrough
-        default:
-        {
-            extract_file(path, pack, mapped_file->size);
-            printf("gdpc: Unknown type for \"%s\".\n", file_info->path);
-            break;
-        }
-    }
+    (void)resource_type;
+    (void)mapped_file;
 
     // Clean-up
     file_info->path[strlen(file_info->path)] = '.';
@@ -114,40 +83,10 @@ static int get_resource_type(FILE* pack)
 
     if(strcmp(str, "StreamTexture") == 0) resource_type = GD_RESOURCE_TYPE_TEXTURE;
     else if(strcmp(str, "Image") == 0)    resource_type = GD_RESOURCE_TYPE_IMAGE;
+    else if(strcmp(str, "Texture") == 0)  resource_type = GD_RESOURCE_TYPE_TEXTURE_ATLAS;
 
     free(str);
     return resource_type;
-}
-
-// https://github.com/godotengine/godot/blob/master/editor/import/resource_importer_image.cpp
-static int extract_image(const char* path, gd_file* file_info, FILE* pack)
-{
-    // Skip magic number
-    fseek(pack, file_info->offset + 4, SEEK_SET);
-
-    // Get length
-    int32_t len = 0;
-    fread(&len, 4, 1, pack);
-
-    // Skip string
-    fseek(pack, len, SEEK_CUR);
-
-    // Extract file
-    extract_file(path, pack, file_info->size);
-
-    return 0;
-}
-
-// https://github.com/godotengine/godot/blob/master/editor/import/resource_importer_texture.cpp
-static int extract_texture(const char* path, gd_file* file_info, FILE* pack)
-{
-    // Skip header
-    fseek(pack, file_info->offset + 32, SEEK_SET);
-
-    // Extract file
-    extract_file(path, pack, file_info->size);
-
-    return 0;
 }
 
 static char* get_string(const char* item, FILE* pack)

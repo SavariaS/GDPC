@@ -1,6 +1,8 @@
 #ifndef TOOL_GDPC_CONFIG_H
 #define TOOL_GDPC_CONFIG_H
 
+#include "dynamic_array.h"
+#include <stddef.h>
 #include <stdbool.h>
 
 enum
@@ -13,22 +15,20 @@ enum
     OPERATION_MODE_UPDATE = 5
 };
 
-enum
-{
-    EXTRACTION_MODE_ORIGINAL = 0,
-    EXTRACTION_MODE_IMPORT = 1,
-    EXTRACTION_MODE_ASSETS = 2
-};
-
 typedef struct
 {
     bool verbose;
+    bool convert;
+
+    int version_major;
+    int version_minor;
+    int version_revision;
 
     int operation_mode;
-    int extraction_mode;
 
-    int input_count;
-    char** input_files;
+    dynamic_array whitelist;
+    dynamic_array blacklist;
+    dynamic_array input_files;
     char* destination;
 } config;
 

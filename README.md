@@ -4,7 +4,7 @@ A command line tool to manipulate Godot's package files (.pck).
 
 #### Usage:
 
-`gdpc [-aceiluv] [--longoption ...] [[file ...] dest]`
+`gdpc [-celuv] [--longoption ...] [[file ...] dest]`
 
 #### Operation mode:
 
@@ -15,15 +15,22 @@ A command line tool to manipulate Godot's package files (.pck).
 | --create, -c | Creates a new package file. |
 | --update, -u | Modifies or appends files to a package. |
 
-#### Extraction mode:
+#### Extract options
 
 | Flag | Description |
 | ---- | ----------- |
-| *default* | Extracts all files. |
-| --import, -i | Extracts non-Godot files and .import files. Extracts assets from resource files. Useful for easy re-importing of assets with the engine. | 
-| --assets-only, -r | Ignores all Godot files and extracts assets from resource files. |
+| --convert | Convert resource files to their original asset. |
+| -w="path" | Adds file(s) to the whitelist. By default, all files are whitelisted. | 
+| -b="path" | Adds file(s) to the blacklist. By default, no files are blacklisted. |
+| --ignore-resources | Adds all resource files to the blacklist. Equivalent to `-b="*.stex" -b="*.image" -b="*.res" -b="*.texarr" -b="*.tex3d"` |
 
-#### Options:
+#### Create options
+
+| Flag | Description |
+| ---- | ----------- |
+| -v=X.X.X | Specify the engine version |
+
+#### General Options:
 | Flag | Description |
 | ---- | ----------- |
 | --verbose, -v | Prints additional information. |

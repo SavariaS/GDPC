@@ -4,9 +4,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool filter_path(dynamic_array* filters, char* path, int len);
+
 char* generate_path(const char* file, const char* dest, size_t dest_len)
 {
-    size_t file_len = strlen(file) - 6; // ignore "res://"
+    size_t file_len = strlen(file) - 6; // Ignore "res://"
     char* path = malloc(dest_len + file_len + 1);
     if(path == NULL)
     {
@@ -18,6 +20,66 @@ char* generate_path(const char* file, const char* dest, size_t dest_len)
     strcat(path, file + 6);
 
     return path;
+}
+
+bool is_whitelisted(char* file, int len, config* cfg) 
+{ 
+    if(cfg->whitelist.size == 0)
+    {
+        return true;
+    }
+    else
+    {
+        return filter_path(&cfg->whitelist, file, len); 
+    }
+}
+
+bool is_blacklisted(char* file, int len, config* cfg) 
+{ 
+    if(cfg->blacklist.size == 0)
+    {
+        return false;
+    }
+    else
+    {
+        return filter_path(&cfg->blacklist, file, len); 
+    }
+}
+
+static bool filter_path(dynamic_array* filters, char* path, int len)
+{
+    path += 6; // Ignore "res://"
+    len -= 6 - 1;
+
+    // For each filter 
+    for(size_t i = 0; i < filters->size; ++i)
+    {
+        filter* fil = (filter*)dynamic_array_at(filters, i);
+
+        // If there is no wildcard character...
+        if(fil->wildcard == NULL)
+        {
+            // Compare both strings
+            if(strcmp(path, fil->data) == 0)
+            {
+                return true;
+            }
+        }
+        else
+        {
+            // Get the length of the string after the wildcard charater
+            int end_len = fil->end - (fil->wildcard + 1);
+
+            // Compare the strings on either side of the wildcard character
+            if(strncmp(path, fil->data, fil->wildcard - fil->data) == 0 &&
+               strncmp(path + len - end_len, fil->wildcard + 1, end_len) == 0)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 int extract_file(const char* dest, FILE* source, int length)
