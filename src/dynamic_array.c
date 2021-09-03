@@ -5,6 +5,7 @@
 #include <string.h>
 
 static void dynamic_array_reserve(dynamic_array* arr, size_t new_capacity);
+static void* at(dynamic_array* arr, size_t index);
 
 void dynamic_array_init(dynamic_array* arr, size_t type_size)
 {
@@ -45,7 +46,7 @@ void dynamic_array_push_back(dynamic_array* arr, void* data)
         dynamic_array_reserve(arr, arr->capacity * 2);
     }
 
-    memcpy(dynamic_array_at(arr, arr->size), data, arr->sizeof_type);
+    memcpy(at(arr, arr->size), data, arr->sizeof_type);
     arr->size++;
 }
 
@@ -79,7 +80,7 @@ void dynamic_array_shrink(dynamic_array* arr)
     dynamic_array_reserve(arr, arr->size);
 }
 
-void* dynamic_array_at(dynamic_array* arr, size_t index) 
+static void* at(dynamic_array* arr, size_t index) 
 { 
     if(arr == NULL || arr->data == NULL) return NULL;
     return (void*)&arr->data[index * arr->sizeof_type]; 

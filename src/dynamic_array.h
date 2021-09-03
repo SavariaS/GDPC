@@ -19,6 +19,4 @@ void dynamic_array_push_back(dynamic_array* arr, void* data);
 void dynamic_array_pop_back(dynamic_array* arr);
 void dynamic_array_shrink(dynamic_array* arr);
 
-void* dynamic_array_at(dynamic_array* arr, size_t index);
-
 #endif

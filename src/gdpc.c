@@ -11,6 +11,11 @@ static int read_pack(const char* path, config* cfg);
 static int read_file_list(FILE* pack, gd_file* file_list, int file_count, config* cfg);
 static int read_files(FILE* pack, gd_file* file_list, int file_count, config* cfg);
 
+static void write_file_list(FILE* pack, char** file_list, int32_t* length_list, config* cfg);
+//static int write_file_list_from_pack();
+static void write_files(FILE* pack, char** file_list, int32_t* length_list, int64_t* list_offset, int64_t* file_offset, config* cfg);
+//static int write_files_from_pack();
+
 int read_packs(config* cfg)
 {
     int error = 0;
@@ -30,7 +35,7 @@ int read_packs(config* cfg)
 }
 
 /*
- * 1 x 4B  | String | Magic Number (GDPC)
+ * 1 x 4B  | String | Magic Number (0x47445043)
  * 1 x 4B  | Int    | ?
  * 3 x 4B  | Int    | Engine version
  * 1 x 64B | Void   | Reserved
@@ -66,7 +71,7 @@ static int read_pack(const char* path, config* cfg)
     fseek(pack, 64, SEEK_CUR);
 
     // Number of files
-    int file_count = 0;
+    int32_t file_count = 0;
     fread(&file_count, 4, 1, pack);
 
     gd_file* list = malloc(file_count * sizeof(gd_file));
@@ -195,4 +200,130 @@ static int read_files(FILE* pack, gd_file* file_list, int file_count, config* cf
     }
 
     return 0;
+}
+
+/*
+ * 1 x 4B  | String | Magic Number (0x47445043)
+ * 1 x 4B  | Int    | ?
+ * 3 x 4B  | Int    | Engine version
+ * 1 x 64B | Void   | Reserved
+ * 1 x 4B  | Int    | Number of packaged files 
+*/
+int create_pack(config* cfg)
+{
+    // Create file
+    create_path(cfg->destination);
+    FILE* pack = fopen(cfg->destination, "wb");
+    if(pack == NULL)
+    {
+        printf("gdpc: Failed to create file \"%s\"\n", cfg->destination);
+        return 1;
+    }
+
+    // Write file header
+    char magic[4] = {'G', 'D', 'P', 'C'}; // Magic number
+    fwrite(magic, 1, 4, pack);
+
+    int32_t zero = 0;
+    fwrite(&zero, 1, 4, pack); // ?
+
+    fwrite(&cfg->version_major, 4, 1, pack); // Engine version
+    fwrite(&cfg->version_minor, 4, 1, pack);
+    fwrite(&cfg->version_revision, 4, 1, pack);
+
+    for(int i = 0; i < 16; ++i) fwrite(&zero, 4, 1, pack); // Reserved space
+
+    int32_t fileCount = cfg->input_files.size;
+    fwrite(&fileCount, 4, 1, pack); // Number of files
+
+    // Write file list
+    char** file_list = (char**)cfg->input_files.data;
+    int32_t* length_list = malloc(sizeof(int32_t) * cfg->input_files.size);
+
+    write_file_list(pack, file_list, length_list, cfg);
+
+    // Write files
+    int64_t list_offset = 80;
+    int64_t file_offset = ftell(pack);
+
+    write_files(pack, file_list, length_list, &list_offset, &file_offset, cfg);
+
+    // Clean up
+    free(length_list);
+    fclose(pack);
+
+    return 0;
+}
+
+/*
+ * 1 x 4B  | Int    | String length
+ *         | String | Path
+ * 1 x 8B  | Int    | File offset
+ * 1 x 8B  | Int    | File size
+ * 1 x 16B | ?      | MD5
+*/
+static void write_file_list(FILE* pack, char** file_list, int32_t* length_list, config* cfg)
+{
+    for(size_t i = 0; i < cfg->input_files.size; ++i)
+    {
+        // Get file
+        char* original_path = file_list[i];
+
+        // Generate path
+        length_list[i] = strlen(original_path) + 6;
+        char* path = calloc(length_list[i] + 1, 1);
+
+        char res[7] = "res://";
+        strcat(path, res);
+        strcat(path, original_path);
+
+        // Write file item
+        char zero[32] = { 0 };
+
+        fwrite(&length_list[i], 4, 1, pack); // Length
+        fwrite(path, 1, length_list[i], pack); // Path
+        fwrite(zero, 1, 32, pack); // Set offset, size and MD5 to 0
+
+        free(path);
+    }
+}
+
+static void write_files(FILE* pack, char** file_list, int32_t* length_list, int64_t* list_offset, int64_t* file_offset, config* cfg)
+{
+    for(size_t i = 0; i < cfg->input_files.size; ++i)
+    {
+        // Get file
+        char* original_file = file_list[i];
+
+        // Copy file
+        FILE* file = fopen(original_file, "rb");
+        if(file == NULL)
+        {
+            printf("gdpc: Failed to read from file \"%s\"\n", cfg->destination);
+            *list_offset += length_list[i] + 36;
+
+            continue;
+        }
+
+        uint64_t size = 0;
+        int c = fgetc(file);
+        while(c != EOF)
+        {
+            ++size;
+            fputc(c, pack);
+            c = fgetc(file);
+        }
+        fclose(file);
+
+        // Store offset and size
+        fseek(pack, *list_offset + length_list[i] + 12, SEEK_SET); // Go to file list
+
+        fwrite(&file_offset, 8, 1, pack); // Store offset
+        fwrite(&size, 8, 1, pack); // Store size
+
+        // Adjust values
+        *list_offset += length_list[i] + 36;
+        *file_offset += size;
+        fseek(pack, 0, SEEK_END);
+    }
 }

@@ -20,8 +20,8 @@ bool parse_command_line_arguments(int argc, char** argv, config* cfg)
     cfg->verbose = false;
     cfg->convert = false;
     cfg->version_major = 0;
-    cfg->version_major = 0;
-    cfg->version_major = 0;
+    cfg->version_minor = 0;
+    cfg->version_revision = 0;
     cfg->operation_mode = OPERATION_MODE_UNSPECIFIED;
     cfg->destination = NULL;
 
@@ -70,14 +70,32 @@ bool parse_command_line_arguments(int argc, char** argv, config* cfg)
         printf("gdpc: You must provide file(s) to extract/package as well as a destination.\nTry 'gdpc --help' for more information.\n");
         return 1;
     }
+    if(cfg->operation_mode == OPERATION_MODE_CREATE && cfg->version_major == 0)
+    {
+        printf("gdpc: You must specify the engine version when creating packages.\nTry 'gdpc --help' for more information.\n");
+        return 1;
+    }
 
-    // If the operation mode requires a destination, use last file inputted as the destination
-    if(cfg->operation_mode != OPERATION_MODE_LIST)
+    // Set the last input file as the destination when creating or extracting archives
+    if(cfg->operation_mode == OPERATION_MODE_CREATE || cfg->operation_mode == OPERATION_MODE_EXTRACT)
     {
         cfg->destination = ((char**)cfg->input_files.data)[cfg->input_files.size - 1]; // Set last file as the destination
         dynamic_array_pop_back(&cfg->input_files); // Remove it from the list of input files
-    }
 
+        // If destination is not a folder, add '/'
+        size_t len = strlen(cfg->destination);
+        if(cfg->operation_mode == OPERATION_MODE_EXTRACT && cfg->destination[len - 1] != '/')
+        {
+            char* new_path = malloc(len + 2);
+            memcpy(new_path, cfg->destination, len);
+
+            new_path[len] = '/';
+            new_path[len + 1] = '\0';
+
+            free(cfg->destination);
+            cfg->destination = new_path;
+        }
+    }
 
     dynamic_array_shrink(&cfg->whitelist);
     dynamic_array_shrink(&cfg->blacklist);

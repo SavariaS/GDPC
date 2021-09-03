@@ -54,7 +54,7 @@ static bool filter_path(dynamic_array* filters, char* path, int len)
     // For each filter 
     for(size_t i = 0; i < filters->size; ++i)
     {
-        filter* fil = (filter*)dynamic_array_at(filters, i);
+        filter* fil = (filter*)&filters->data[sizeof(filter) * i];
 
         // If there is no wildcard character...
         if(fil->wildcard == NULL)

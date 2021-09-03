@@ -12,6 +12,7 @@ int main(int argc, char** argv)
 
     if(parse_command_line_arguments(argc, argv, &cfg) != 0)
     {
+        free_config(&cfg);
         return 1;
     }
 
@@ -21,13 +22,18 @@ int main(int argc, char** argv)
         // Read the packs
         if(read_packs(&cfg) != 0)
         {
+            free_config(&cfg);
             return 1;
         }
     }
     // Else if creating or updating
     else if(cfg.operation_mode == OPERATION_MODE_CREATE || cfg.operation_mode == OPERATION_MODE_UPDATE)
     {
-
+        if(create_pack(&cfg) !=0)
+        {
+            free_config(&cfg);
+            return 1;
+        }
     }
 
     // Clean-up

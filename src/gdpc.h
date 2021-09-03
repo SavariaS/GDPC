@@ -4,5 +4,6 @@
 #include "config.h"
 
 int read_packs(config* cfg);
+int create_pack(config* cfg);
 
 #endif

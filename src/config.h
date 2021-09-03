@@ -3,6 +3,7 @@
 
 #include "dynamic_array.h"
 #include <stddef.h>
+#include <stdint.h>
 #include <stdbool.h>
 
 enum
@@ -20,9 +21,9 @@ typedef struct
     bool verbose;
     bool convert;
 
-    int version_major;
-    int version_minor;
-    int version_revision;
+    int32_t version_major;
+    int32_t version_minor;
+    int32_t version_revision;
 
     int operation_mode;
 
