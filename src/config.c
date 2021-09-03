@@ -113,6 +113,14 @@ static int parse_long_option(char* arg, config* cfg)
 
     else if(strcmp(arg, "--convert") == 0) cfg->convert = true;
     else if(strcmp(arg, "--verbose") == 0) cfg->verbose = true;
+    else if(strcmp(arg, "--ignore-resources") == 0)
+    {
+        add_filter(&cfg->blacklist, "-b=*.stex");
+        add_filter(&cfg->blacklist, "-b=*.image");
+        add_filter(&cfg->blacklist, "-b=*.res");
+        add_filter(&cfg->blacklist, "-b=*.texarr");
+        add_filter(&cfg->blacklist, "-b=*.tex3d");
+    }
     else if(strcmp(arg, "--help") == 0) print_help_message();
 
     else

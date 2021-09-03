@@ -11,6 +11,7 @@ static int read_pack(const char* path, config* cfg);
 static int read_file_list(FILE* pack, gd_file* file_list, int file_count, config* cfg);
 static int read_files(FILE* pack, gd_file* file_list, int file_count, config* cfg);
 
+static int32_t get_file_count(config* cfg);
 static void write_file_list(FILE* pack, char** file_list, int32_t* length_list, config* cfg);
 //static int write_file_list_from_pack();
 static void write_files(FILE* pack, char** file_list, int32_t* length_list, int64_t* list_offset, int64_t* file_offset, config* cfg);
@@ -82,13 +83,13 @@ static int read_pack(const char* path, config* cfg)
     }
 
     // Print additional information if verbose
-    if(cfg->operation_mode == OPERATION_MODE_LIST || cfg->verbose == true)
+    if(cfg->verbose == true)
+    {
+        printf("\033[4m%s\033[24m (v%d.%d.%d) (%d files found)\n", path, major, minor, revision, file_count);
+    }
+    else if(cfg->operation_mode == OPERATION_MODE_LIST)
     {
         printf("\033[4m%s\033[24m\n", path);
-        if(cfg->verbose == true)
-        {
-            printf("Godot v%d.%d.%d\nFile count: %d\n\n", major, minor, revision, file_count);
-        }
     }
 
     // Read the file list
@@ -161,7 +162,7 @@ static int read_file_list(FILE* pack, gd_file* file_list, int file_count, config
         {
             printf("%s\n", file_list[i].path);
         }
-        printf("\n");
+        //printf("\n");
     }
 
     return 0;
@@ -180,19 +181,33 @@ static int read_files(FILE* pack, gd_file* file_list, int file_count, config* cf
         // If the file should be extracted...
         if(is_whitelisted(file_info->path, file_info->len, cfg) && !is_blacklisted(file_info->path, file_info->len, cfg))
         {
+            if(cfg->verbose == true)
+            {
+                printf("Extracting \"%s\" (%ldB)\n", file_info->path, file_info->size);
+            }
+
             // Extract the file
             char* path = generate_path(file_info->path, cfg->destination, dest_len);
             create_path(path);
 
             fseek(pack, file_info->offset, SEEK_SET);
-            extract_file(path, pack, file_info->size);
+            int success = extract_file(path, pack, file_info->size);
 
             // Clean up
             free(path);
+
+            if(success != 0)
+            {
+                continue;
+            }
+        }
+        else if(cfg->verbose == true)
+        {
+            printf("Ignoring \"%s\"\n", file_info->path);
         }
 
         // Else if it's an .import file and resource files should be converted...
-        else if(cfg->convert == true && is_import(file_info->path) == true)
+        if(cfg->convert == true && is_import(file_info->path) == true)
         {
             // Extract resource
             convert_resource(file_info, file_list, file_count, pack, cfg);
@@ -220,6 +235,11 @@ int create_pack(config* cfg)
         return 1;
     }
 
+    if(cfg->verbose == true)
+    {
+        printf("Creating \033[4m%s\033[24m (v%d.%d.%d)\n", cfg->destination, cfg->version_major, cfg->version_minor, cfg->version_revision);
+    }
+
     // Write file header
     char magic[4] = {'G', 'D', 'P', 'C'}; // Magic number
     fwrite(magic, 1, 4, pack);
@@ -233,12 +253,17 @@ int create_pack(config* cfg)
 
     for(int i = 0; i < 16; ++i) fwrite(&zero, 4, 1, pack); // Reserved space
 
-    int32_t fileCount = cfg->input_files.size;
+    int32_t fileCount = get_file_count(cfg);
     fwrite(&fileCount, 4, 1, pack); // Number of files
 
     // Write file list
     char** file_list = (char**)cfg->input_files.data;
     int32_t* length_list = malloc(sizeof(int32_t) * cfg->input_files.size);
+
+    if(cfg->verbose == true)
+    {
+        printf("Storing %d files:\n", (int)fileCount);
+    }
 
     write_file_list(pack, file_list, length_list, cfg);
 
@@ -255,6 +280,22 @@ int create_pack(config* cfg)
     return 0;
 }
 
+static int32_t get_file_count(config* cfg)
+{
+    char** file_list = (char**)cfg->input_files.data;
+    int32_t count = 0;
+
+    for(size_t i = 0; i < cfg->input_files.size; ++i)
+    {
+        if(is_file(file_list[i]))
+        {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
 /*
  * 1 x 4B  | Int    | String length
  *         | String | Path
@@ -268,6 +309,11 @@ static void write_file_list(FILE* pack, char** file_list, int32_t* length_list, 
     {
         // Get file
         char* original_path = file_list[i];
+
+        if(is_file(original_path) == false)
+        {
+            continue;
+        }
 
         // Generate path
         length_list[i] = strlen(original_path) + 6;
@@ -295,6 +341,11 @@ static void write_files(FILE* pack, char** file_list, int32_t* length_list, int6
         // Get file
         char* original_file = file_list[i];
 
+        if(is_file(original_file) == false)
+        {
+            continue;
+        }
+
         // Copy file
         FILE* file = fopen(original_file, "rb");
         if(file == NULL)
@@ -303,6 +354,11 @@ static void write_files(FILE* pack, char** file_list, int32_t* length_list, int6
             *list_offset += length_list[i] + 36;
 
             continue;
+        }
+
+        if(cfg->verbose == true)
+        {
+            printf("Packaging \"%s\"\n", original_file);
         }
 
         uint64_t size = 0;
@@ -318,7 +374,7 @@ static void write_files(FILE* pack, char** file_list, int32_t* length_list, int6
         // Store offset and size
         fseek(pack, *list_offset + length_list[i] + 12, SEEK_SET); // Go to file list
 
-        fwrite(&file_offset, 8, 1, pack); // Store offset
+        fwrite(file_offset, 8, 1, pack); // Store offset
         fwrite(&size, 8, 1, pack); // Store size
 
         // Adjust values

@@ -133,4 +133,12 @@ void create_path(char* path)
         *separator = '/';
     }
 }
+
+bool is_file(char* path)
+{
+    struct stat s;
+    stat(path, &s);
+
+    return S_ISREG(s.st_mode);
+}
 #endif

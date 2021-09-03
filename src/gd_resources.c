@@ -34,6 +34,11 @@ int convert_resource(gd_file* file_info, gd_file* file_list, int file_count, FIL
     fseek(pack, file_info->offset, SEEK_SET);
     gd_file* mapped_file = get_mapped_file(file_list, file_count, pack);
 
+    if(cfg->verbose == true)
+    {
+        printf("Converting \"%s\" (%ldB)\n", mapped_file->path, mapped_file->size);
+    }
+
     // Get resource type
     fseek(pack, file_info->offset, SEEK_SET);
     int resource_type = get_resource_type(pack);

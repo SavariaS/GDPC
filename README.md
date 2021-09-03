@@ -22,7 +22,7 @@ A command line tool to manipulate Godot's package files (.pck).
 | --convert | Convert resource files to their original asset. |
 | -w="path" | Adds file(s) to the whitelist. By default, all files are whitelisted. | 
 | -b="path" | Adds file(s) to the blacklist. By default, no files are blacklisted. |
-| --ignore-resources | Adds all resource files to the blacklist. Equivalent to `-b="*.stex" -b="*.image" -b="*.res" -b="*.texarr" -b="*.tex3d"` |
+| --ignore-resources | Adds all resource files to the blacklist. Equivalent to `-b=*.stex -b=*.image -b=*.res -b=*.texarr -b=*.tex3d` |
 
 #### Create options
 
