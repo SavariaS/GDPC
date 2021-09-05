@@ -2,9 +2,9 @@
 
 A command line tool to manipulate Godot's package files (.pck).
 
-#### Usage:
+## Usage:
 
-`gdpc [-celuv] [--longoption ...] [[file ...] dest]`
+`gdpc [-ceiluv] [--longoption ...] [[file ...] dest]`
 
 #### Operation mode:
 
@@ -22,7 +22,7 @@ A command line tool to manipulate Godot's package files (.pck).
 | --convert | Convert resource files to their original asset. |
 | -w="path" | Adds file(s) to the whitelist. By default, all files are whitelisted. | 
 | -b="path" | Adds file(s) to the blacklist. By default, no files are blacklisted. |
-| --ignore-resources | Adds all resource files to the blacklist. Equivalent to `-b=*.stex -b=*.image -b=*.res -b=*.texarr -b=*.tex3d` |
+| --ignore-resources, -i | Adds all resource files to the blacklist. Equivalent to `-b=*.stex -b=*.image -b=*.res -b=*.texarr -b=*.tex3d` |
 
 #### Create options
 
@@ -35,3 +35,28 @@ A command line tool to manipulate Godot's package files (.pck).
 | ---- | ----------- |
 | --verbose, -v | Prints additional information. |
 | --help, -h | Prints a short help message. No arguments allowed. |
+
+## Building
+
+```
+mkdir build
+cd build
+
+cmake ..
+make
+```
+
+The executable will be located in `bin/`
+
+## To-Do
+
+* Add features
+    * Wildcard character support when parsing command line arguments
+    * MD5 to verify the integrity of files 
+    * Convert from Godot resource files to the original asset
+
+* Platform support
+    * Windows
+    * MacOS
+
+* Optimize

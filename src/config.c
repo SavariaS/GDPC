@@ -76,7 +76,7 @@ bool parse_command_line_arguments(int argc, char** argv, config* cfg)
         return 1;
     }
 
-    // Set the last input file as the destination when creating or extracting archives
+    // Set the last input file as the destination when creating or extracting packages
     if(cfg->operation_mode == OPERATION_MODE_CREATE || cfg->operation_mode == OPERATION_MODE_EXTRACT)
     {
         cfg->destination = ((char**)cfg->input_files.data)[cfg->input_files.size - 1]; // Set last file as the destination
@@ -97,6 +97,23 @@ bool parse_command_line_arguments(int argc, char** argv, config* cfg)
         }
     }
 
+    // Set the last input file as the target pack when updating packages
+    if(cfg->operation_mode == OPERATION_MODE_UPDATE)
+    {
+        char* last_file = ((char**)cfg->input_files.data)[cfg->input_files.size - 1];
+        size_t len = strlen(last_file) + 7; // Length of the last file + ".update"
+        cfg->destination = calloc(len + 1, 1);
+        if(cfg->destination == NULL)
+        {
+            fprintf(stderr, "calloc(): failed to allocate memory.\n");
+            abort();
+        }
+
+        strcat(cfg->destination, last_file);
+        strcat(cfg->destination, ".update");
+    }
+
+    // Clean-up
     dynamic_array_shrink(&cfg->whitelist);
     dynamic_array_shrink(&cfg->blacklist);
     dynamic_array_shrink(&cfg->input_files);
@@ -150,6 +167,12 @@ static int parse_short_options(char* arg, config* cfg)
 
             case 'v': cfg->verbose = true;
                       break;
+
+            case 'i': add_filter(&cfg->blacklist, "-b=*.stex");
+                      add_filter(&cfg->blacklist, "-b=*.image");
+                      add_filter(&cfg->blacklist, "-b=*.res");
+                      add_filter(&cfg->blacklist, "-b=*.texarr");
+                      add_filter(&cfg->blacklist, "-b=*.tex3d");
             
             case 'h': print_help_message();
                       break;

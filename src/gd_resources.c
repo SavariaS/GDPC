@@ -28,6 +28,12 @@ bool is_import(const char* path)
     return (strncmp(path - 7, ".import", 7) == 0) ? true : false;
 }
 
+bool is_pck(const char* path)
+{
+    path += strlen(path);
+    return (strncmp(path - 4, ".pck", 4) == 0) ? true : false;
+}
+
 int convert_resource(gd_file* file_info, gd_file* file_list, int file_count, FILE* pack, config* cfg)
 {
     // Get mapped file

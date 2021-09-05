@@ -3,6 +3,7 @@
 # Github files
 !.gitignore
 !README.md
+!LICENSE
 
 # Source files
 !CMakeLists.txt

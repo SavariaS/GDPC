@@ -134,7 +134,7 @@ void create_path(char* path)
     }
 }
 
-bool is_file(char* path)
+bool is_regular_file(char* path)
 {
     struct stat s;
     stat(path, &s);

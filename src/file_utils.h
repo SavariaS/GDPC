@@ -24,7 +24,7 @@ typedef struct
 char* generate_path(const char* file, const char* dest, size_t dest_len);
 bool is_whitelisted(char* file, int len, config* cfg);
 bool is_blacklisted(char* file, int len, config* cfg);
-bool is_file(char* path); // Platform-dependant
+bool is_regular_file(char* path); // Platform-dependant
 
 void create_path(char* path); // Platform-dependant
 int extract_file(const char* dest, FILE* source, int length);
